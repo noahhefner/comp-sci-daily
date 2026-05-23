@@ -1,0 +1,32 @@
+[project]
+name = "comp-sci-daily"
+version = "0.1.0"
+description = "Daily Computer Science Trivia"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.136.1",
+    "httpx>=0.28.1",
+    "sqlalchemy>=2.0.49",
+    "python-jose[cryptography]>=3.3.0",
+    "pyjwt>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "psycopg[binary]>=3.1.0",
+    "uvicorn>=0.47.0",
+]
+
+[dependency-groups]
+dev = [
+    "isort>=8.0.1",
+    "pyclean>=3.7.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.14",
+    "ty>=0.0.39",
+    "uv-upsync>=2.3.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100

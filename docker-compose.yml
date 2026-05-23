@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: comp-sci-daily-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-comp_sci_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-comp_sci_password}
+      POSTGRES_DB: ${DB_NAME:-comp_sci_daily}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      #- ./server/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-comp_sci_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: comp-sci-daily-api
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-comp_sci_user}
+      DB_PASSWORD: ${DB_PASSWORD:-comp_sci_password}
+      DB_NAME: ${DB_NAME:-comp_sci_daily}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./server/src:/app/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: comp-sci-daily-caddy
+    ports:
+      - "8000:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - api
+    command: caddy run --config /etc/caddy/Caddyfile
+
+volumes:
+  postgres_data:
