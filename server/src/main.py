@@ -9,6 +9,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Trust reverse proxy headers
+app.state.trust_proxy = True
+
 # Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,

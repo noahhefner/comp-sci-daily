@@ -10,7 +10,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      #- ./server/init_db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-comp_sci_user}"]
       interval: 10s
@@ -29,7 +28,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-comp_sci_password}
       DB_NAME: ${DB_NAME:-comp_sci_daily}
       AUTH0_DOMAIN: ${AUTH0_DOMAIN}
-      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
     ports:
       - "8001:8000"
     volumes:
@@ -37,7 +36,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   caddy:
     image: caddy:2-alpine

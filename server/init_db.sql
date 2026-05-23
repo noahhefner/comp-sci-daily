@@ -80,61 +80,107 @@ FROM users u
 LEFT JOIN user_answers ua ON u.id = ua.user_id
 GROUP BY u.id, u.email;
 
--- Insert sample data for development
+-- =====================================================
+-- Sample Data
+-- =====================================================
 
 -- Question 1: Easy - Big O Notation
-INSERT INTO questions (question, difficulty, date) 
-VALUES ('What is the time complexity of binary search?', 'easy', CURRENT_DATE)
-RETURNING id INTO q1_id;
 
-INSERT INTO choices (question_id, choice_text) 
-SELECT q1_id, choice_text FROM (VALUES 
-    ('O(n)'),
-    ('O(log n)'),
-    ('O(n²)'),
-    ('O(n log n)'),
-    ('O(2^n)')
-) AS t(choice_text);
-
+WITH inserted_question AS (
+    INSERT INTO questions (question, difficulty, date)
+    VALUES (
+        'What is the time complexity of binary search?',
+        'easy',
+        CURRENT_DATE
+    )
+    RETURNING id
+),
+inserted_choices AS (
+    INSERT INTO choices (question_id, choice_text)
+    SELECT
+        iq.id,
+        v.choice_text
+    FROM inserted_question iq
+    CROSS JOIN (
+        VALUES
+            ('O(n)'),
+            ('O(log n)'),
+            ('O(n^2)'),
+            ('O(n log n)'),
+            ('O(2^n)')
+    ) AS v(choice_text)
+)
 INSERT INTO answers (question_id, answer, explanation)
-VALUES ((SELECT id FROM questions WHERE question = 'What is the time complexity of binary search?' LIMIT 1), 
-        'B', 
-        'Binary search divides the search space in half with each iteration, resulting in O(log n) time complexity. This is much more efficient than linear search which is O(n).');
+SELECT
+    id,
+    'B',
+    'Binary search divides the search space in half with each iteration, resulting in O(log n) time complexity. This is much more efficient than linear search which is O(n).'
+FROM inserted_question;
+
 
 -- Question 2: Medium - Database Indexing
-INSERT INTO questions (question, difficulty, date) 
-VALUES ('What is the primary advantage of using an index on a database column?', 'medium', CURRENT_DATE)
-RETURNING id INTO q2_id;
 
-INSERT INTO choices (question_id, choice_text) 
-SELECT q2_id, choice_text FROM (VALUES 
-    ('It reduces storage space'),
-    ('It speeds up query performance'),
-    ('It automatically backs up data'),
-    ('It encrypts the data'),
-    ('It enforces referential integrity')
-) AS t(choice_text);
-
+WITH inserted_question AS (
+    INSERT INTO questions (question, difficulty, date)
+    VALUES (
+        'What is the primary advantage of using an index on a database column?',
+        'medium',
+        CURRENT_DATE
+    )
+    RETURNING id
+),
+inserted_choices AS (
+    INSERT INTO choices (question_id, choice_text)
+    SELECT
+        iq.id,
+        v.choice_text
+    FROM inserted_question iq
+    CROSS JOIN (
+        VALUES
+            ('It reduces storage space'),
+            ('It speeds up query performance'),
+            ('It automatically backs up data'),
+            ('It encrypts the data'),
+            ('It enforces referential integrity')
+    ) AS v(choice_text)
+)
 INSERT INTO answers (question_id, answer, explanation)
-VALUES ((SELECT id FROM questions WHERE question = 'What is the primary advantage of using an index on a database column?' LIMIT 1), 
-        'B', 
-        'Database indexes create a separate data structure that allows the database engine to quickly locate rows without scanning the entire table. This significantly speeds up query performance for WHERE clauses and JOIN operations.');
+SELECT
+    id,
+    'B',
+    'Database indexes create a separate data structure that allows the database engine to quickly locate rows without scanning the entire table. This significantly speeds up query performance for WHERE clauses and JOIN operations.'
+FROM inserted_question;
+
 
 -- Question 3: Hard - Algorithm Design
-INSERT INTO questions (question, difficulty, date) 
-VALUES ('Which sorting algorithm has the best average-case time complexity?', 'hard', CURRENT_DATE)
-RETURNING id INTO q3_id;
 
-INSERT INTO choices (question_id, choice_text) 
-SELECT q3_id, choice_text FROM (VALUES 
-    ('Bubble Sort'),
-    ('Selection Sort'),
-    ('Merge Sort'),
-    ('Insertion Sort'),
-    ('Counting Sort')
-) AS t(choice_text);
-
+WITH inserted_question AS (
+    INSERT INTO questions (question, difficulty, date)
+    VALUES (
+        'Which sorting algorithm has the best average-case time complexity?',
+        'hard',
+        CURRENT_DATE
+    )
+    RETURNING id
+),
+inserted_choices AS (
+    INSERT INTO choices (question_id, choice_text)
+    SELECT
+        iq.id,
+        v.choice_text
+    FROM inserted_question iq
+    CROSS JOIN (
+        VALUES
+            ('Bubble Sort'),
+            ('Selection Sort'),
+            ('Merge Sort'),
+            ('Insertion Sort'),
+            ('Counting Sort')
+    ) AS v(choice_text)
+)
 INSERT INTO answers (question_id, answer, explanation)
-VALUES ((SELECT id FROM questions WHERE question = 'Which sorting algorithm has the best average-case time complexity?' LIMIT 1), 
-        'C', 
-        'Merge Sort has O(n log n) average-case time complexity, which is optimal for comparison-based sorting algorithms. While Counting Sort can achieve O(n) for certain types of data, Merge Sort is the best general-purpose comparison-based sorting algorithm.');
+SELECT
+    id,
+    'C',
+    'Merge Sort has O(n log n) average-case time complexity, which is optimal for comparison-based sorting algorithms. While Counting Sort can achieve O(n) for certain types of data, Merge Sort is the best general-purpose comparison-based sorting algorithm.'
+FROM inserted_question;

@@ -34,7 +34,7 @@ async def get_today_question(
     """Retrieve the question for today with all choices."""
 
     query = text(
-        "SELECT id, question, difficulty, date FROM questions WHERE date = CURRENT_DATE"
+        "SELECT id, question, difficulty, date FROM questions WHERE date = CURRENT_DATE LIMIT 1"
     )
 
     try:
