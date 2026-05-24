@@ -1,5 +1,5 @@
-from uuid import UUID, uuid4
 from datetime import date
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -8,10 +8,7 @@ from sqlalchemy.engine import Connection
 
 from src.dependencies.get_db import get_db
 from src.dependencies.get_user import User, get_user
-from src.domains.questions.choices_helper import (
-    ChoiceResponse,
-    get_choices_for_question,
-)
+from src.domains.questions.choices_helper import ChoiceResponse, get_choices_for_question
 
 router = APIRouter()
 
@@ -48,42 +45,29 @@ async def create_question(
     # Validate difficulty
     if request.difficulty not in ("easy", "medium", "hard"):
         raise HTTPException(
-            status_code=422, 
-            detail="difficulty must be 'easy', 'medium', or 'hard'"
+            status_code=422, detail="difficulty must be 'easy', 'medium', or 'hard'"
         )
-    
+
     # Validate answer letter
     if request.answer_letter not in ("A", "B", "C", "D", "E", "F"):
-        raise HTTPException(
-            status_code=422,
-            detail="answer_letter must be A, B, C, D, E, or F"
-        )
-    
+        raise HTTPException(status_code=422, detail="answer_letter must be A, B, C, D, E, or F")
+
     # Validate choices
     if len(request.choices) < 2:
-        raise HTTPException(
-            status_code=422,
-            detail="choices must have at least 2 options"
-        )
-    
+        raise HTTPException(status_code=422, detail="choices must have at least 2 options")
+
     # Validate question text
     if not request.question or len(request.question.strip()) == 0:
-        raise HTTPException(
-            status_code=422,
-            detail="question cannot be empty"
-        )
-    
+        raise HTTPException(status_code=422, detail="question cannot be empty")
+
     # Validate explanation
     if not request.explanation or len(request.explanation.strip()) == 0:
-        raise HTTPException(
-            status_code=422,
-            detail="explanation cannot be empty"
-        )
+        raise HTTPException(status_code=422, detail="explanation cannot be empty")
 
     try:
         # Generate question ID
         question_id = uuid4()
-        
+
         # Insert the question
         insert_question_query = text(
             """

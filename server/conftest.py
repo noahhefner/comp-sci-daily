@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 
 from src.dependencies.get_db import get_db
-from src.dependencies.get_user import get_user, User
+from src.dependencies.get_user import User, get_user
 from src.main import app
 
 
@@ -185,4 +185,3 @@ def client():
             yield client
 
         app.dependency_overrides.clear()
-

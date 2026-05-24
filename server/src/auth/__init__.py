@@ -1,6 +1,6 @@
-from fastapi_plugin.fast_api_client import Auth0FastAPI
 import os
-import sys
+
+from fastapi_plugin.fast_api_client import Auth0FastAPI
 
 AUTH0_DOMAIN: str | None = os.getenv("AUTH0_DOMAIN")
 if not AUTH0_DOMAIN:

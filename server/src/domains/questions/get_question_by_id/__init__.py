@@ -8,10 +8,7 @@ from sqlalchemy.engine import Connection
 
 from src.dependencies.get_db import get_db
 from src.dependencies.get_user import User, get_user
-from src.domains.questions.choices_helper import (
-    ChoiceResponse,
-    get_choices_for_question,
-)
+from src.domains.questions.choices_helper import ChoiceResponse, get_choices_for_question
 
 router = APIRouter()
 

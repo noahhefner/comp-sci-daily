@@ -11,14 +11,15 @@ class User(BaseModel):
     email: str
     sub: str
 
+
 async def get_user(
     claims=Depends(auth0.require_auth()),
 ) -> User:
     """Get user from Auth0 token."""
-    
+
     user = User(
         id=claims["sub"],
-        email="john.doe@email.com", # FIX
-        sub=claims["sub"]
+        email="john.doe@email.com",  # FIX
+        sub=claims["sub"],
     )
     return user

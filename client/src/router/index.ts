@@ -9,15 +9,9 @@ const routes: RouteRecordRaw[] = [
     component: () => import("@/views/WelcomePage.vue"),
   },
   {
-    path: "/home",
+    path: "/today",
     name: "home",
-    component: () => import("@/views/HomePage.vue"),
-    beforeEnter: authGuard,
-  },
-  {
-    path: "/question/:id",
-    name: "question",
-    component: () => import("@/views/QuestionPage.vue"),
+    component: () => import("@/views/TodaysQuestionPage.vue"),
     beforeEnter: authGuard,
   },
   {

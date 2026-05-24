@@ -1,14 +1,20 @@
 import os
 from functools import lru_cache
 
-from pydantic import ConfigDict
+from pydantic import AliasGenerator, ConfigDict
+from pydantic.alias_generators import to_snake
 from pydantic_settings import BaseSettings
 
 
 class DatabaseSettings(BaseSettings):
     """Database configuration loaded from environment variables."""
 
-    model_config = ConfigDict(case_sensitive=False)
+    model_config = ConfigDict(
+        alias_generator=AliasGenerator(
+            validation_alias=to_snake,
+            serialization_alias=to_snake,
+        )
+    )
 
     db_host: str
     db_port: int
