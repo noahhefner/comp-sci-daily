@@ -4,17 +4,23 @@ import { useRouter } from "vue-router";
 import { useAuthenticatedUser } from "../composables/useAuthenticatedUser";
 import { useAuth0 } from "@auth0/auth0-vue";
 
-const { user, accessToken, isLoading } = useAuthenticatedUser();
+const { user, accessToken } = useAuthenticatedUser();
 
 const auth0 = useAuth0();
 const router = useRouter();
 
 const question = ref<any>(null);
 const isQuestionLoading = ref(true);
+
+const answer = ref<any>(null);
+const isAnswerLoading = ref(false);
+
 const error = ref<string | null>(null);
 
-// State to track which option the user clicked
 const selectedChoice = ref<string | null>(null);
+
+const hasSubmitted = ref(false);
+const isCorrect = ref<boolean | null>(null);
 
 const getTodaysQuestion = async () => {
   if (!accessToken.value) {
@@ -37,19 +43,60 @@ const getTodaysQuestion = async () => {
     question.value = await response.json();
   } catch (err) {
     console.error("API request failed:", err);
-    if (err instanceof Error) {
-      error.value = err.message;
-    } else {
-      error.value = "An unknown error occurred";
-    }
+    error.value = err instanceof Error ? err.message : "An unknown error occurred";
   } finally {
     isQuestionLoading.value = false;
   }
 };
 
+const getTodaysAnswer = async () => {
+  if (!accessToken.value) {
+    error.value = "No access token available.";
+    return;
+  }
+
+  try {
+    isAnswerLoading.value = true;
+    const baseURL: string = import.meta.env.VITE_API_URL;
+    const response = await fetch(`${baseURL}/answers/${question.value.id}`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken.value}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    answer.value = await response.json();
+  } catch (err) {
+    console.error("API request failed:", err);
+    error.value = err instanceof Error ? err.message : "An unknown error occurred";
+  } finally {
+    isAnswerLoading.value = false;
+  }
+};
+
 const handleChoiceSelect = (letter: string) => {
+  if (hasSubmitted.value) return;
+
+  if (selectedChoice.value === letter) {
+    selectedChoice.value = null;
+    return;
+  }
   selectedChoice.value = letter;
-  console.log(`Selected option: ${letter}`);
+};
+
+const handleSubmit = async () => {
+  if (!selectedChoice.value) return;
+
+  await getTodaysAnswer();
+
+  if (answer.value) {
+    console.log(selectedChoice.value);
+    console.log(answer.value.correct_choice);
+    isCorrect.value = selectedChoice.value === answer.value.answer;
+    hasSubmitted.value = true;
+  }
 };
 
 const handleLogout = async () => {
@@ -74,9 +121,6 @@ watchEffect(() => {
         <h1>Computer Science Daily Trivia</h1>
         <div class="user-info">
           <span v-if="user" class="user-name">{{ user.name }}</span>
-          <button @click="router.push('/create')" class="create-btn">
-            Create Question
-          </button>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
@@ -116,20 +160,45 @@ watchEffect(() => {
               @click="handleChoiceSelect(choice.choice_letter)"
               :class="[
                 'choice-btn',
-                { selected: selectedChoice === choice.choice_letter },
+                { 
+                  selected: selectedChoice === choice.choice_letter,
+                  correct: hasSubmitted && choice.choice_letter === answer?.correct_choice,
+                  incorrect: hasSubmitted && selectedChoice === choice.choice_letter && selectedChoice !== answer?.correct_choice
+                }
               ]"
             >
               <span class="letter">{{ choice.choice_letter }}</span>
               <span class="text">{{ choice.choice_text }}</span>
             </button>
           </div>
+
+          <div class="question-footer">
+            <button 
+              class="submit-btn" 
+              :disabled="selectedChoice === null || hasSubmitted"
+              @click="handleSubmit"
+            >
+              Submit
+            </button>
+          </div>
+
+          <div v-if="hasSubmitted" class="answer-feedback">
+            <p v-if="isCorrect" class="correct-text">
+              ✅ Correct!
+            </p>
+            <p v-else class="incorrect-text">
+              ❌ Incorrect. The correct answer is {{ answer?.correct_choice }}.
+            </p>
+
+            <p v-if="answer?.explanation" class="explanation">
+              {{ answer.explanation }}
+            </p>
+          </div>
         </div>
       </template>
     </main>
   </div>
-</template>
-
-<style scoped>
+</template><style scoped>
 .home-page {
   min-height: 100vh;
   background-color: var(--bg-slate);
@@ -180,9 +249,10 @@ watchEffect(() => {
 }
 
 /* Buttons */
-.create-btn {
-  padding: 8px 16px;
-  background-color: var(--accent);
+.submit-btn {
+  width: 100%;
+  padding: 16px;
+  background-color: var(--primary-dark);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -192,9 +262,15 @@ watchEffect(() => {
   transition: all 0.2s ease;
 }
 
-.create-btn:hover {
+.submit-btn:hover {
   background-color: var(--accent-hover);
   transform: translateY(-1px);
+}
+
+.submit-btn:disabled {
+  color: var(--accent);
+  background-color: var(--primary-light);
+  cursor: not-allowed;
 }
 
 .logout-btn {
@@ -237,6 +313,10 @@ watchEffect(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+}
+
+.question-footer {
+  margin-top: 24px;
 }
 
 /* Badges */
