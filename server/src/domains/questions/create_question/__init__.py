@@ -1,37 +1,29 @@
+import string
 from datetime import date
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
+from sqlalchemy.sql.elements import TextClause
 
 from src.dependencies.get_db import get_db
 from src.dependencies.get_user import User, get_user
-from src.domains.questions.choices_helper import ChoiceResponse, get_choices_for_question
 
 router = APIRouter()
 
 
 class CreateQuestionRequest(BaseModel):
-    """Request model for creating a new question."""
-
     question: str
-    difficulty: str
-    choices: list[str]
-    answer_letter: str
-    explanation: str
     date: date
+    choices: list[str]
+    answer_index: int
+    explanation: str
 
 
 class CreateQuestionResponse(BaseModel):
-    """Response model for created question."""
-
     id: UUID
-    question: str
-    difficulty: str
-    date: date
-    choices: list[ChoiceResponse]
 
 
 @router.post("/", response_model=CreateQuestionResponse)
@@ -40,98 +32,133 @@ async def create_question(
     db: Connection = Depends(get_db),
     user: User = Depends(get_user),
 ):
-    """Create a new question with choices and answer."""
 
-    # Validate difficulty
-    if request.difficulty not in ("easy", "medium", "hard"):
+    # Validation
+
+    if len(request.question.strip()) == 0:
         raise HTTPException(
-            status_code=422, detail="difficulty must be 'easy', 'medium', or 'hard'"
+            status_code=422,
+            detail="Question cannot be empty.",
         )
 
-    # Validate answer letter
-    if request.answer_letter not in ("A", "B", "C", "D", "E", "F"):
-        raise HTTPException(status_code=422, detail="answer_letter must be A, B, C, D, E, or F")
+    if len(request.explanation.strip()) == 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Explanation cannot be empty.",
+        )
 
-    # Validate choices
     if len(request.choices) < 2:
-        raise HTTPException(status_code=422, detail="choices must have at least 2 options")
+        raise HTTPException(
+            status_code=422,
+            detail="Must provide two or more choices.",
+        )
 
-    # Validate question text
-    if not request.question or len(request.question.strip()) == 0:
-        raise HTTPException(status_code=422, detail="question cannot be empty")
+    if (
+        request.answer_index < 0
+        or request.answer_index >= len(request.choices)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid answer index.",
+        )
 
-    # Validate explanation
-    if not request.explanation or len(request.explanation.strip()) == 0:
-        raise HTTPException(status_code=422, detail="explanation cannot be empty")
+    for choice in request.choices:
+        if len(choice.strip()) == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Choices cannot be empty.",
+            )
 
     try:
-        # Generate question ID
-        question_id = uuid4()
 
-        # Insert the question
-        insert_question_query = text(
-            """
-            INSERT INTO questions (id, question, difficulty, date)
-            VALUES (:id, :question, :difficulty, :date)
-            """
-        )
+        # Insert question
+
+        question_query: TextClause = text("""
+            INSERT INTO questions (question, date)
+            VALUES (:question, :date)
+            RETURNING id
+        """)
 
         question_params = {
-            "id": str(question_id),
-            "question": request.question,
-            "difficulty": request.difficulty,
+            "question": request.question.strip(),
             "date": request.date,
         }
 
-        db.execute(insert_question_query, question_params)
-
-        # Insert the choices
-        for idx, choice_text in enumerate(request.choices):
-            choice_id = uuid4()
-            insert_choice_query = text(
-                """
-                INSERT INTO choices (id, question_id, choice_text)
-                VALUES (:id, :question_id, :choice_text)
-                """
-            )
-            choice_params = {
-                "id": str(choice_id),
-                "question_id": str(question_id),
-                "choice_text": choice_text,
-            }
-            db.execute(insert_choice_query, choice_params)
-
-        # Insert the answer
-        answer_id = uuid4()
-        insert_answer_query = text(
-            """
-            INSERT INTO answers (id, question_id, answer, explanation)
-            VALUES (:id, :question_id, :answer, :explanation)
-            """
+        question_result = db.execute(
+            question_query,
+            question_params,
         )
-        answer_params = {
-            "id": str(answer_id),
-            "question_id": str(question_id),
-            "answer": request.answer_letter,
-            "explanation": request.explanation,
-        }
-        db.execute(insert_answer_query, answer_params)
 
-        # Commit the transaction
+        question_id: UUID = question_result.scalar_one()
+
+        # Insert choices
+
+        inserted_choice_ids: list[UUID] = []
+
+        choice_query: TextClause = text("""
+            INSERT INTO choices (question_id, choice_text)
+            VALUES (:question_id, :choice_text)
+            RETURNING id
+        """)
+
+        for choice in request.choices:
+
+            choice_result = db.execute(
+                choice_query,
+                {
+                    "question_id": question_id,
+                    "choice_text": choice.strip(),
+                },
+            )
+
+            inserted_choice_ids.append(
+                choice_result.scalar_one()
+            )
+
+        # Insert answer
+
+        answer_query: TextClause = text("""
+            INSERT INTO answers (
+                question_id,
+                choice_id,
+                explanation
+            )
+            VALUES (
+                :question_id,
+                :choice_id,
+                :explanation
+            )
+        """)
+
+        db.execute(
+            answer_query,
+            {
+                "question_id": question_id,
+                "choice_id": inserted_choice_ids[
+                    request.answer_index
+                ],
+                "explanation": request.explanation.strip(),
+            },
+        )
+
         db.commit()
 
-        # Fetch and return the created question with choices
-        choices = await get_choices_for_question(question_id, db)
-
-        return {
-            "id": question_id,
-            "question": request.question,
-            "difficulty": request.difficulty,
-            "date": request.date,
-            "choices": choices,
-        }
+        return {"id": question_id}
 
     except Exception as e:
+
         db.rollback()
+
         print(e)
-        raise HTTPException(status_code=500, detail="Internal server error")
+
+        # Unique date constraint
+        if "questions_date_key" in str(e):
+            raise HTTPException(
+                status_code=409,
+                detail="A question already exists for this date.",
+            )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error",
+        )

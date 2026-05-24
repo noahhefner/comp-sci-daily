@@ -1,43 +1,43 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuth0 } from "@auth0/auth0-vue";
-import { useAuthStore } from "@/stores/auth";
-import apiService from "@/services/api";
+import { useAuthenticatedUser } from "../composables/useAuthenticatedUser";
 
-const router = useRouter();
+const { user, accessToken } = useAuthenticatedUser();
+
 const auth0 = useAuth0();
-const authStore = useAuthStore();
+const router = useRouter();
 
-const isLoading = ref(false);
-const error = ref<string | null>(null);
+const question = ref("");
+const date = ref(new Date().toISOString().split("T")[0]);
+
+const choices = ref<string[]>(["", ""]);
+const answerIndex = ref<number | null>(null);
+
+const explanation = ref("");
+
+const isSubmitting = ref(false);
+
 const successMessage = ref<string | null>(null);
-
-const form = ref({
-  question: "",
-  difficulty: "easy",
-  choices: ["", "", "", ""],
-  answer_letter: "A",
-  explanation: "",
-  date: new Date().toISOString().split("T")[0],
-});
-
-const difficultyOptions = ["easy", "medium", "hard"];
-const answerLetters = ["A", "B", "C", "D", "E", "F"];
-
-const updateChoice = (index: number, value: string) => {
-  form.value.choices[index] = value;
-};
+const error = ref<string | null>(null);
 
 const addChoice = () => {
-  if (form.value.choices.length < 6) {
-    form.value.choices.push("");
-  }
+  choices.value.push("");
 };
 
 const removeChoice = (index: number) => {
-  if (form.value.choices.length > 2) {
-    form.value.choices.splice(index, 1);
+  if (choices.value.length <= 2) return;
+
+  choices.value.splice(index, 1);
+
+  if (answerIndex.value === index) {
+    answerIndex.value = null;
+  } else if (
+    answerIndex.value !== null &&
+    answerIndex.value > index
+  ) {
+    answerIndex.value--;
   }
 };
 
@@ -45,238 +45,239 @@ const handleSubmit = async () => {
   error.value = null;
   successMessage.value = null;
 
-  // Validation
-  if (!form.value.question.trim()) {
-    error.value = "Question text is required";
+  if (!accessToken.value) {
+    error.value = "No access token available.";
     return;
   }
 
-  if (!form.value.explanation.trim()) {
-    error.value = "Explanation is required";
+  if (answerIndex.value === null) {
+    error.value = "Please select the correct answer.";
     return;
   }
-
-  const filledChoices = form.value.choices.filter((c) => c.trim());
-  if (filledChoices.length < 2) {
-    error.value = "At least 2 choices are required";
-    return;
-  }
-
-  isLoading.value = true;
 
   try {
-    const payload = {
-      question: form.value.question,
-      difficulty: form.value.difficulty,
-      choices: filledChoices,
-      answer_letter: form.value.answer_letter,
-      explanation: form.value.explanation,
-      date: form.value.date,
-    };
+    isSubmitting.value = true;
 
-    const result = await apiService.createQuestion(payload);
+    const baseURL: string = import.meta.env.VITE_API_URL;
 
-    successMessage.value = "Question created successfully!";
+    const response = await fetch(`${baseURL}/questions/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken.value}`,
+      },
+      body: JSON.stringify({
+        question: question.value,
+        date: date.value,
+        choices: choices.value,
+        answer_index: answerIndex.value,
+        explanation: explanation.value,
+      }),
+    });
 
-    // Reset form
-    form.value = {
-      question: "",
-      difficulty: "easy",
-      choices: ["", "", "", ""],
-      answer_letter: "A",
-      explanation: "",
-      date: new Date().toISOString().split("T")[0],
-    };
+    const data = await response.json();
 
-    // Redirect to home after 2 seconds
-    setTimeout(() => {
-      router.push("/home");
-    }, 2000);
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to create question.");
+    }
+
+    successMessage.value = "Question created successfully.";
+
+    question.value = "";
+    choices.value = ["", ""];
+    answerIndex.value = null;
+    explanation.value = "";
+
   } catch (err) {
+    console.error(err);
+
     error.value =
-      err instanceof Error ? err.message : "Failed to create question";
+      err instanceof Error
+        ? err.message
+        : "An unknown error occurred";
   } finally {
-    isLoading.value = false;
+    isSubmitting.value = false;
   }
 };
 
 const handleLogout = async () => {
-  await authStore.logout();
+  await auth0.logout({
+    logoutParams: {
+      returnTo: window.location.origin,
+    },
+  });
 };
-
-onMounted(async () => {
-  if (auth0.isLoading.value) {
-    return;
-  }
-
-  try {
-    await authStore.getAccessToken();
-  } catch (error) {
-    console.error("Failed to get access token:", error);
-  }
-});
 </script>
 
 <template>
-  <div class="create-question-page">
+  <div class="home-page">
     <header class="header">
       <div class="header-content">
-        <h1>Computer Science Daily Trivia</h1>
+        <h1>Create Trivia Question</h1>
+
         <div class="user-info">
-          <span v-if="authStore.user" class="user-name">{{
-            authStore.user.name
-          }}</span>
-          <button @click="handleLogout" class="logout-btn">Logout</button>
+          <span v-if="user" class="user-name">
+            {{ user.name }}
+          </span>
+
+          <button
+            @click="handleLogout"
+            class="logout-btn"
+          >
+            Logout
+          </button>
         </div>
       </div>
     </header>
 
     <main class="main-content">
-      <div class="form-container">
-        <h2>Create a New Question</h2>
 
-        <div v-if="error" class="error-message">{{ error }}</div>
-        <div v-if="successMessage" class="success-message">
-          {{ successMessage }}
+      <div
+        v-if="error"
+        class="error-message"
+      >
+        {{ error }}
+      </div>
+
+      <div
+        v-if="successMessage"
+        class="success-message"
+      >
+        {{ successMessage }}
+      </div>
+
+      <div class="question-card">
+
+        <div class="form-group">
+          <label>Question</label>
+
+          <textarea
+            v-model="question"
+            class="input textarea"
+            placeholder="Enter question..."
+          />
         </div>
 
-        <form @submit.prevent="handleSubmit">
-          <!-- Question Text -->
-          <div class="form-group">
-            <label for="question">Question *</label>
-            <textarea
-              id="question"
-              v-model="form.question"
-              placeholder="Enter your question here..."
-              rows="3"
-              required
-            ></textarea>
-          </div>
+        <div class="form-group">
+          <label>Date</label>
 
-          <!-- Difficulty -->
-          <div class="form-group">
-            <label for="difficulty">Difficulty *</label>
-            <select id="difficulty" v-model="form.difficulty" required>
-              <option
-                v-for="diff in difficultyOptions"
-                :key="diff"
-                :value="diff"
-              >
-                {{ diff.charAt(0).toUpperCase() + diff.slice(1) }}
-              </option>
-            </select>
-          </div>
+          <input
+            v-model="date"
+            type="date"
+            class="input"
+          />
+        </div>
 
-          <!-- Choices -->
-          <div class="form-group">
-            <label>Answer Choices *</label>
-            <div class="choices-container">
-              <div
-                v-for="(choice, index) in form.choices"
-                :key="index"
-                class="choice-input-group"
-              >
-                <span class="choice-letter">{{
-                  String.fromCharCode(65 + index)
-                }}</span>
-                <input
-                  v-model="form.choices[index]"
-                  type="text"
-                  :placeholder="`Choice ${String.fromCharCode(65 + index)}`"
-                  @input="updateChoice(index, $event.target.value)"
-                />
-                <button
-                  v-if="form.choices.length > 2"
-                  type="button"
-                  @click="removeChoice(index)"
-                  class="remove-choice-btn"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+        <div class="form-group">
+          <div class="choices-header">
+            <label>Choices</label>
+
             <button
-              v-if="form.choices.length < 6"
               type="button"
-              @click="addChoice"
               class="add-choice-btn"
+              @click="addChoice"
             >
               + Add Choice
             </button>
           </div>
 
-          <!-- Correct Answer -->
-          <div class="form-group">
-            <label for="answer">Correct Answer *</label>
-            <select id="answer" v-model="form.answer_letter" required>
-              <option
-                v-for="(letter, index) in answerLetters.slice(
-                  0,
-                  form.choices.length,
-                )"
-                :key="letter"
-                :value="letter"
-              >
-                {{ letter }} - {{ form.choices[index] || "Empty" }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Explanation -->
-          <div class="form-group">
-            <label for="explanation">Explanation *</label>
-            <textarea
-              id="explanation"
-              v-model="form.explanation"
-              placeholder="Explain why this is the correct answer..."
-              rows="4"
-              required
-            ></textarea>
-          </div>
-
-          <!-- Date -->
-          <div class="form-group">
-            <label for="date">Date *</label>
-            <input id="date" v-model="form.date" type="date" required />
-          </div>
-
-          <!-- Buttons -->
-          <div class="form-actions">
-            <button type="submit" :disabled="isLoading" class="submit-btn">
-              {{ isLoading ? "Creating..." : "Create Question" }}
-            </button>
-            <button
-              type="button"
-              @click="router.push('/home')"
-              class="cancel-btn"
-              :disabled="isLoading"
+          <div class="choices-list">
+            <div
+              v-for="(choice, index) in choices"
+              :key="index"
+              class="choice-row"
             >
-              Cancel
-            </button>
+              <button
+                type="button"
+                :class="[
+                  'answer-select-btn',
+                  {
+                    selected: answerIndex === index
+                  }
+                ]"
+                @click="answerIndex = index"
+              >
+                {{ String.fromCharCode(65 + index) }}
+              </button>
+
+              <input
+                v-model="choices[index]"
+                type="text"
+                class="input"
+                :placeholder="`Choice ${String.fromCharCode(65 + index)}`"
+              />
+
+              <button
+                type="button"
+                class="remove-btn"
+                @click="removeChoice(index)"
+                :disabled="choices.length <= 2"
+              >
+                ✕
+              </button>
+            </div>
           </div>
-        </form>
+
+          <p class="helper-text">
+            Click a letter button to mark the correct answer.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label>Explanation</label>
+
+          <textarea
+            v-model="explanation"
+            class="input textarea"
+            placeholder="Explain why the answer is correct..."
+          />
+        </div>
+
+        <button
+          class="submit-btn"
+          :disabled="isSubmitting"
+          @click="handleSubmit"
+        >
+          {{
+            isSubmitting
+              ? "Creating Question..."
+              : "Create Question"
+          }}
+        </button>
+
       </div>
     </main>
   </div>
 </template>
 
 <style scoped>
-.create-question-page {
+.home-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--bg-slate);
+  color: var(--text-main);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
 }
 
+/* Header */
+
 .header {
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: var(--primary-dark);
   color: white;
-  padding: 20px 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 16px 0;
+  box-shadow: 0 4px 12px rgba(30, 70, 32, 0.15);
 }
 
 .header-content {
-  max-width: 1200px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 24px;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -284,224 +285,236 @@ onMounted(async () => {
 
 .header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 16px;
 }
 
 .user-name {
-  font-size: 16px;
+  font-size: 14px;
+  opacity: 0.9;
 }
 
-.logout-btn {
-  padding: 8px 16px;
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 2px solid white;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.logout-btn:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-  transform: scale(1.05);
-}
+/* Main */
 
 .main-content {
-  max-width: 800px;
+  max-width: 720px;
   margin: 40px auto;
-  padding: 0 20px;
+  padding: 0 24px;
 }
 
-.form-container {
-  background-color: white;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+/* Card */
+
+.question-card {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.04),
+    0 2px 4px rgba(0, 0, 0, 0.02);
 }
 
-.form-container h2 {
-  margin-top: 0;
-  color: #333;
-  font-size: 24px;
-  margin-bottom: 30px;
-}
-
-.error-message {
-  background-color: #fee;
-  color: #c33;
-  padding: 12px 16px;
-  border-radius: 4px;
-  margin-bottom: 20px;
-  border-left: 4px solid #c33;
-}
-
-.success-message {
-  background-color: #efe;
-  color: #3c3;
-  padding: 12px 16px;
-  border-radius: 4px;
-  margin-bottom: 20px;
-  border-left: 4px solid #3c3;
-}
+/* Form */
 
 .form-group {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+
   font-weight: 600;
-  color: #333;
+  color: #2d3748;
 }
 
-.form-group input[type="text"],
-.form-group input[type="date"],
-.form-group textarea,
-.form-group select {
+.input {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  transition: border-color 0.3s ease;
+  padding: 14px;
+
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+
+  font-size: 15px;
+
+  transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
-.form-group input[type="text"]:focus,
-.form-group input[type="date"]:focus,
-.form-group textarea:focus,
-.form-group select:focus {
+.input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
 }
 
-.form-group textarea {
+.textarea {
+  min-height: 120px;
   resize: vertical;
 }
 
-.choices-container {
-  background-color: #f8f9fa;
-  padding: 16px;
-  border-radius: 4px;
-  margin-bottom: 12px;
+/* Choices */
+
+.choices-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-bottom: 14px;
 }
 
-.choice-input-group {
+.choices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.choice-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
 }
 
-.choice-input-group:last-child {
-  margin-bottom: 0;
-}
+.answer-select-btn {
+  width: 42px;
+  height: 42px;
 
-.choice-letter {
-  font-weight: 600;
-  color: #667eea;
-  min-width: 24px;
-  text-align: center;
-}
-
-.choice-input-group input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.choice-input-group input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.remove-choice-btn {
-  padding: 6px 10px;
-  background-color: #ff6b6b;
-  color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 10px;
+
   cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.3s ease;
+
+  background: #edf2f7;
+  color: #4a5568;
+
+  font-weight: 700;
+
+  transition: all 0.2s ease;
+
+  flex-shrink: 0;
 }
 
-.remove-choice-btn:hover {
-  background-color: #ee5a5a;
+.answer-select-btn.selected {
+  background: var(--primary);
+  color: white;
+}
+
+.answer-select-btn:hover {
+  transform: translateY(-1px);
 }
 
 .add-choice-btn {
-  width: 100%;
-  padding: 10px;
-  background-color: #667eea;
-  color: white;
   border: none;
-  border-radius: 4px;
-  cursor: pointer;
+  background: transparent;
+
+  color: var(--primary);
   font-weight: 600;
-  transition: background-color 0.3s ease;
+
+  cursor: pointer;
 }
 
-.add-choice-btn:hover {
-  background-color: #764ba2;
-}
+.remove-btn {
+  width: 40px;
+  height: 40px;
 
-.form-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 30px;
-}
-
-.submit-btn,
-.cancel-btn {
-  flex: 1;
-  padding: 12px 24px;
   border: none;
-  border-radius: 4px;
-  font-weight: 600;
-  font-size: 16px;
+  border-radius: 8px;
+
+  background: #fed7d7;
+  color: #c53030;
+
   cursor: pointer;
-  transition: all 0.3s ease;
+  flex-shrink: 0;
 }
+
+.remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.helper-text {
+  margin-top: 10px;
+
+  font-size: 13px;
+  color: #718096;
+}
+
+/* Buttons */
 
 .submit-btn {
-  background-color: #667eea;
+  width: 100%;
+  padding: 16px;
+
+  border: none;
+  border-radius: 10px;
+
+  background-color: var(--primary-dark);
   color: white;
+
+  cursor: pointer;
+
+  font-weight: 600;
+  font-size: 15px;
+
+  transition: all 0.2s ease;
 }
 
-.submit-btn:hover:not(:disabled) {
-  background-color: #764ba2;
-  transform: scale(1.02);
+.submit-btn:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 .submit-btn:disabled {
-  opacity: 0.6;
+  background-color: var(--primary-light);
   cursor: not-allowed;
 }
 
-.cancel-btn {
-  background-color: #e0e0e0;
-  color: #333;
+.logout-btn {
+  padding: 8px 16px;
+
+  background-color: transparent;
+  color: white;
+
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 6px;
+
+  cursor: pointer;
 }
 
-.cancel-btn:hover:not(:disabled) {
-  background-color: #d0d0d0;
+.logout-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
-.cancel-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* Messages */
+
+.error-message {
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+
+  padding: 16px;
+  margin-bottom: 20px;
+
+  border-radius: 10px;
+
+  color: var(--error);
+  font-weight: 500;
+}
+
+.success-message {
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+
+  padding: 16px;
+  margin-bottom: 20px;
+
+  border-radius: 10px;
+
+  color: #2e7d32;
+  font-weight: 500;
 }
 </style>

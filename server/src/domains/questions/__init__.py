@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import create_question, get_question_by_id, get_today
+from . import get_question_by_id, get_today, create_question
 
 router = APIRouter()
 

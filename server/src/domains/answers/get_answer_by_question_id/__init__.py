@@ -17,7 +17,7 @@ class AnswerResponse(BaseModel):
 
     id: UUID
     question_id: UUID
-    answer: str
+    choice_id: UUID
     explanation: str
 
 
@@ -30,7 +30,7 @@ async def get_answer_by_question_id(
     """Retrieve an answer by question ID."""
 
     query = text(
-        "SELECT id, question_id, answer, explanation FROM answers WHERE question_id = :question_id"
+        "SELECT id, question_id, choice_id, explanation FROM answers WHERE question_id = :question_id"
     )
 
     params = {"question_id": str(question_id)}

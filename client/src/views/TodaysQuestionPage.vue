@@ -121,6 +121,12 @@ watchEffect(() => {
         <h1>Computer Science Daily Trivia</h1>
         <div class="user-info">
           <span v-if="user" class="user-name">{{ user.name }}</span>
+            <button
+    @click="router.push('/create')"
+    class="create-btn"
+  >
+    Create Question
+  </button>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
@@ -153,24 +159,43 @@ watchEffect(() => {
 
           <h2 class="question-text">{{ question.question }}</h2>
 
-          <div class="choices">
-            <button
-              v-for="choice in question.choices"
-              :key="choice.choice_letter"
-              @click="handleChoiceSelect(choice.choice_letter)"
-              :class="[
-                'choice-btn',
-                { 
-                  selected: selectedChoice === choice.choice_letter,
-                  correct: hasSubmitted && choice.choice_letter === answer?.correct_choice,
-                  incorrect: hasSubmitted && selectedChoice === choice.choice_letter && selectedChoice !== answer?.correct_choice
-                }
-              ]"
-            >
-              <span class="letter">{{ choice.choice_letter }}</span>
-              <span class="text">{{ choice.choice_text }}</span>
-            </button>
-          </div>
+<div class="choices">
+  <button
+    v-for="(choice, index) in question.choices"
+    :key="choice.id || index"
+    @click="handleChoiceSelect(String.fromCharCode(65 + index))"
+    :class="[
+      'choice-btn',
+      {
+        selected:
+          selectedChoice === String.fromCharCode(65 + index),
+
+        correct:
+          hasSubmitted &&
+          String.fromCharCode(65 + index) ===
+            answer?.correct_choice,
+
+        incorrect:
+          hasSubmitted &&
+          selectedChoice ===
+            String.fromCharCode(65 + index) &&
+          selectedChoice !== answer?.correct_choice
+      }
+    ]"
+  >
+    <span class="letter">
+      {{ String.fromCharCode(65 + index) }}
+    </span>
+
+    <span class="text">
+      {{
+        typeof choice === "string"
+          ? choice
+          : choice.choice_text
+      }}
+    </span>
+  </button>
+</div>
 
           <div class="question-footer">
             <button 
