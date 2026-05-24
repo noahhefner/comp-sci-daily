@@ -1,24 +1,64 @@
 <script setup lang="ts">
-import { onMounted, computed } from "vue";
-import { useTriviaStore } from "@/stores/trivia";
-import { useAuthStore } from "@/stores/auth";
+import { watchEffect, ref } from "vue";
+import { useRouter } from "vue-router";
 import QuestionCard from "@/components/QuestionCard.vue";
 import AnswerSection from "@/components/AnswerSection.vue";
+import { useAuthenticatedUser } from "../composables/useAuthenticatedUser";
+import { useAuth0 } from "@auth0/auth0-vue";
 
-const triviaStore = useTriviaStore();
-const authStore = useAuthStore();
+const { user, accessToken, isLoading } = useAuthenticatedUser();
 
-const hasQuestion = computed(() => !!triviaStore.currentQuestion);
+const auth0 = useAuth0();
+const router = useRouter();
+const apiResponse = ref(null);
+const isQuestionLoading = ref(true);
+const error = ref<string | null>(null);
 
-onMounted(async () => {
-  if (!hasQuestion.value) {
-    await triviaStore.fetchTodayQuestion();
+const getTodaysQuestion = async () => {
+  if (!accessToken.value) {
+    error.value = "No access token available.";
+    return;
   }
-});
+
+  try {
+    isQuestionLoading.value = true;
+    const baseURL: string = import.meta.env.VITE_API_URL;
+    const response = await fetch(`${baseURL}/questions/today`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken.value}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    apiResponse.value = await response.json();
+  } catch (err) {
+    console.error("API request failed:", err);
+    // Handle type-unsafe catch blocks cleanly
+    if (err instanceof Error) {
+      error.value = err.message;
+    } else {
+      error.value = "An unknown error occurred";
+    }
+  } finally {
+    isQuestionLoading.value = false;
+  }
+};
 
 const handleLogout = async () => {
-  await authStore.logout();
+  await auth0.logout({
+    logoutParams: {
+      returnTo: window.location.origin,
+    },
+  });
 };
+
+watchEffect(() => {
+  if (accessToken.value) {
+    getTodaysQuestion();
+  }
+});
 </script>
 
 <template>
@@ -27,27 +67,21 @@ const handleLogout = async () => {
       <div class="header-content">
         <h1>Computer Science Daily Trivia</h1>
         <div class="user-info">
-          <span v-if="authStore.user" class="user-name">{{
-            authStore.user.name
-          }}</span>
+          <span v-if="user" class="user-name">{{ user.name }}</span>
+          <button @click="router.push('/create')" class="create-btn">
+            Create Question
+          </button>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
     </header>
 
     <main class="main-content">
-      <div v-if="triviaStore.isLoading && !hasQuestion" class="loading">
+      <div v-if="isQuestionLoading" class="loading">
         <p>Loading today's question...</p>
       </div>
 
-      <div v-else-if="triviaStore.error" class="error">
-        <p>{{ triviaStore.error }}</p>
-        <button @click="triviaStore.fetchTodayQuestion()" class="retry-btn">
-          Retry
-        </button>
-      </div>
-
-      <template v-else-if="hasQuestion">
+      <template v-else-if="apiResponse !== null">
         <QuestionCard />
         <AnswerSection />
       </template>
@@ -105,6 +139,22 @@ const handleLogout = async () => {
 
 .logout-btn:hover {
   background-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.create-btn {
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #667eea;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.create-btn:hover {
+  background-color: white;
   transform: scale(1.05);
 }
 

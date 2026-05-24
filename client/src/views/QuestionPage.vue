@@ -1,33 +1,112 @@
 <script setup lang="ts">
-import { onMounted, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useTriviaStore } from "@/stores/trivia";
+import { useAuth0 } from "@auth0/auth0-vue";
 import { useAuthStore } from "@/stores/auth";
+import apiService, { type Question, type Answer } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard.vue";
 import AnswerSection from "@/components/AnswerSection.vue";
 
 const route = useRoute();
 const router = useRouter();
-const triviaStore = useTriviaStore();
+const auth0 = useAuth0();
 const authStore = useAuthStore();
 
-const questionId = computed(() => route.params.id as string);
-const hasQuestion = computed(() => !!triviaStore.currentQuestion);
+// State
+const currentQuestion = ref<Question | null>(null);
+const currentAnswer = ref<Answer | null>(null);
+const selectedChoice = ref<string | null>(null);
+const isAnswerRevealed = ref(false);
+const isLoading = ref(false);
+const error = ref<string | null>(null);
 
-onMounted(async () => {
-  if (questionId.value) {
-    await triviaStore.fetchQuestionById(questionId.value);
-  }
+// Computed
+const questionId = computed(() => route.params.id as string);
+const hasQuestion = computed(() => !!currentQuestion.value);
+const isCorrect = computed(() => {
+  if (!currentAnswer.value || !selectedChoice.value) return false;
+  return selectedChoice.value === currentAnswer.value.answer;
 });
 
-const handleLogout = async () => {
-  await authStore.logout();
-};
+// Methods
+async function fetchQuestionById(id: string) {
+  isLoading.value = true;
+  error.value = null;
+  selectedChoice.value = null;
+  isAnswerRevealed.value = false;
 
-const goHome = () => {
-  triviaStore.reset();
+  try {
+    currentQuestion.value = await apiService.getQuestionById(id);
+    currentAnswer.value = null;
+  } catch (err) {
+    error.value =
+      err instanceof Error ? err.message : "Failed to fetch question";
+    currentQuestion.value = null;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function revealAnswer() {
+  if (!currentQuestion.value) return;
+
+  isLoading.value = true;
+  error.value = null;
+
+  try {
+    currentAnswer.value = await apiService.getAnswerByQuestionId(
+      currentQuestion.value.id,
+    );
+    isAnswerRevealed.value = true;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Failed to fetch answer";
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function selectChoice(letter: string) {
+  if (!isAnswerRevealed.value) {
+    selectedChoice.value = letter;
+  }
+}
+
+async function handleLogout() {
+  await authStore.logout();
+}
+
+function goHome() {
+  currentQuestion.value = null;
+  currentAnswer.value = null;
+  selectedChoice.value = null;
+  isAnswerRevealed.value = false;
   router.push({ name: "home" });
-};
+}
+
+function handleTryNext() {
+  currentQuestion.value = null;
+  currentAnswer.value = null;
+  selectedChoice.value = null;
+  isAnswerRevealed.value = false;
+  goHome();
+}
+
+// Lifecycle
+onMounted(async () => {
+  if (auth0.isLoading.value) {
+    return;
+  }
+
+  try {
+    await authStore.getAccessToken();
+  } catch (error) {
+    console.error("Failed to get access token:", error);
+  }
+
+  if (questionId.value) {
+    await fetchQuestionById(questionId.value);
+  }
+});
 </script>
 
 <template>
@@ -46,23 +125,35 @@ const goHome = () => {
     </header>
 
     <main class="main-content">
-      <div v-if="triviaStore.isLoading && !hasQuestion" class="loading">
+      <div v-if="isLoading && !hasQuestion" class="loading">
         <p>Loading question...</p>
       </div>
 
-      <div v-else-if="triviaStore.error" class="error">
-        <p>{{ triviaStore.error }}</p>
-        <button
-          @click="triviaStore.fetchQuestionById(questionId)"
-          class="retry-btn"
-        >
+      <div v-else-if="error" class="error">
+        <p>{{ error }}</p>
+        <button @click="fetchQuestionById(questionId)" class="retry-btn">
           Retry
         </button>
       </div>
 
       <template v-else-if="hasQuestion">
-        <QuestionCard />
-        <AnswerSection />
+        <QuestionCard
+          :question="currentQuestion"
+          :selected-choice="selectedChoice"
+          :is-answer-revealed="isAnswerRevealed"
+          :current-answer="currentAnswer"
+          :is-correct="isCorrect"
+          @select-choice="selectChoice"
+        />
+        <AnswerSection
+          :is-answer-revealed="isAnswerRevealed"
+          :current-answer="currentAnswer"
+          :is-correct="isCorrect"
+          :has-selected="!!selectedChoice"
+          :is-loading="isLoading"
+          @reveal-answer="revealAnswer"
+          @try-next="handleTryNext"
+        />
       </template>
     </main>
   </div>

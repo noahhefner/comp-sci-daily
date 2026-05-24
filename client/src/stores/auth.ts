@@ -1,4 +1,4 @@
-import { ref, computed } from "vue";
+import { computed } from "vue";
 import { defineStore } from "pinia";
 import { useAuth0 } from "@auth0/auth0-vue";
 import apiService from "@/services/api";
@@ -9,12 +9,6 @@ export const useAuthStore = defineStore("auth", () => {
   const isAuthenticated = computed(() => auth0.isAuthenticated.value);
   const user = computed(() => auth0.user.value);
   const isLoading = computed(() => auth0.isLoading.value);
-
-  async function login() {
-    await auth0.loginWithRedirect({
-      appState: { targetUrl: "/" },
-    });
-  }
 
   async function logout() {
     apiService.clearAuthToken();
@@ -40,7 +34,6 @@ export const useAuthStore = defineStore("auth", () => {
     isAuthenticated,
     user,
     isLoading,
-    login,
     logout,
     getAccessToken,
   };

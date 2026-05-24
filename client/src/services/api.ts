@@ -14,6 +14,15 @@ interface Answer {
   explanation: string;
 }
 
+interface CreateQuestionRequest {
+  question: string;
+  difficulty: string;
+  choices: string[];
+  answer_letter: string;
+  explanation: string;
+  date: string;
+}
+
 class ApiService {
   private baseURL: string;
   private headers: Record<string, string>;
@@ -66,7 +75,14 @@ class ApiService {
   async getAnswerByQuestionId(questionId: string): Promise<Answer> {
     return this.request<Answer>(`/answers/${questionId}`);
   }
+
+  async createQuestion(data: CreateQuestionRequest): Promise<Question> {
+    return this.request<Question>("/questions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export default new ApiService();
-export type { Question, Answer };
+export type { Question, Answer, CreateQuestionRequest };
