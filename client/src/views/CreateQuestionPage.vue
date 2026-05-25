@@ -33,10 +33,7 @@ const removeChoice = (index: number) => {
 
   if (answerIndex.value === index) {
     answerIndex.value = null;
-  } else if (
-    answerIndex.value !== null &&
-    answerIndex.value > index
-  ) {
+  } else if (answerIndex.value !== null && answerIndex.value > index) {
     answerIndex.value--;
   }
 };
@@ -87,14 +84,11 @@ const handleSubmit = async () => {
     choices.value = ["", ""];
     answerIndex.value = null;
     explanation.value = "";
-
   } catch (err) {
     console.error(err);
 
     error.value =
-      err instanceof Error
-        ? err.message
-        : "An unknown error occurred";
+      err instanceof Error ? err.message : "An unknown error occurred";
   } finally {
     isSubmitting.value = false;
   }
@@ -120,34 +114,21 @@ const handleLogout = async () => {
             {{ user.name }}
           </span>
 
-          <button
-            @click="handleLogout"
-            class="logout-btn"
-          >
-            Logout
-          </button>
+          <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
     </header>
 
     <main class="main-content">
-
-      <div
-        v-if="error"
-        class="error-message"
-      >
+      <div v-if="error" class="error-message">
         {{ error }}
       </div>
 
-      <div
-        v-if="successMessage"
-        class="success-message"
-      >
+      <div v-if="successMessage" class="success-message">
         {{ successMessage }}
       </div>
 
       <div class="question-card">
-
         <div class="form-group">
           <label>Question</label>
 
@@ -161,22 +142,14 @@ const handleLogout = async () => {
         <div class="form-group">
           <label>Date</label>
 
-          <input
-            v-model="date"
-            type="date"
-            class="input"
-          />
+          <input v-model="date" type="date" class="input" />
         </div>
 
         <div class="form-group">
           <div class="choices-header">
             <label>Choices</label>
 
-            <button
-              type="button"
-              class="add-choice-btn"
-              @click="addChoice"
-            >
+            <button type="button" class="add-choice-btn" @click="addChoice">
               + Add Choice
             </button>
           </div>
@@ -192,8 +165,8 @@ const handleLogout = async () => {
                 :class="[
                   'answer-select-btn',
                   {
-                    selected: answerIndex === index
-                  }
+                    selected: answerIndex === index,
+                  },
                 ]"
                 @click="answerIndex = index"
               >
@@ -238,13 +211,8 @@ const handleLogout = async () => {
           :disabled="isSubmitting"
           @click="handleSubmit"
         >
-          {{
-            isSubmitting
-              ? "Creating Question..."
-              : "Create Question"
-          }}
+          {{ isSubmitting ? "Creating Question..." : "Create Question" }}
         </button>
-
       </div>
     </main>
   </div>

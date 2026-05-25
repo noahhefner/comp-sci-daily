@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watchEffect, ref } from "vue";
+import { watchEffect, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthenticatedUser } from "../composables/useAuthenticatedUser";
 import { useAuth0 } from "@auth0/auth0-vue";
@@ -17,10 +17,28 @@ const isAnswerLoading = ref(false);
 
 const error = ref<string | null>(null);
 
-const selectedChoice = ref<string | null>(null);
+const selectedChoiceId = ref<string | null>(null);
 
 const hasSubmitted = ref(false);
 const isCorrect = ref<boolean | null>(null);
+
+const correctChoice = computed(() => {
+  if (!answer.value || !question.value) return null;
+
+  return question.value.choices.find(
+    (choice: any) => choice.id === answer.value.choice_id,
+  );
+});
+
+const correctChoiceLetter = computed(() => {
+  if (!correctChoice.value || !question.value) return "";
+
+  const index = question.value.choices.findIndex(
+    (choice: any) => choice.id === correctChoice.value.id,
+  );
+
+  return String.fromCharCode(65 + index);
+});
 
 const getTodaysQuestion = async () => {
   if (!accessToken.value) {
@@ -43,7 +61,8 @@ const getTodaysQuestion = async () => {
     question.value = await response.json();
   } catch (err) {
     console.error("API request failed:", err);
-    error.value = err instanceof Error ? err.message : "An unknown error occurred";
+    error.value =
+      err instanceof Error ? err.message : "An unknown error occurred";
   } finally {
     isQuestionLoading.value = false;
   }
@@ -70,31 +89,31 @@ const getTodaysAnswer = async () => {
     answer.value = await response.json();
   } catch (err) {
     console.error("API request failed:", err);
-    error.value = err instanceof Error ? err.message : "An unknown error occurred";
+    error.value =
+      err instanceof Error ? err.message : "An unknown error occurred";
   } finally {
     isAnswerLoading.value = false;
   }
 };
 
-const handleChoiceSelect = (letter: string) => {
+const handleChoiceSelect = (choiceId: string) => {
   if (hasSubmitted.value) return;
 
-  if (selectedChoice.value === letter) {
-    selectedChoice.value = null;
+  if (selectedChoiceId.value === choiceId) {
+    selectedChoiceId.value = null;
     return;
   }
-  selectedChoice.value = letter;
+
+  selectedChoiceId.value = choiceId;
 };
 
 const handleSubmit = async () => {
-  if (!selectedChoice.value) return;
+  if (!selectedChoiceId.value) return;
 
   await getTodaysAnswer();
 
   if (answer.value) {
-    console.log(selectedChoice.value);
-    console.log(answer.value.correct_choice);
-    isCorrect.value = selectedChoice.value === answer.value.answer;
+    isCorrect.value = selectedChoiceId.value === answer.value.choice_id;
     hasSubmitted.value = true;
   }
 };
@@ -121,12 +140,9 @@ watchEffect(() => {
         <h1>Computer Science Daily Trivia</h1>
         <div class="user-info">
           <span v-if="user" class="user-name">{{ user.name }}</span>
-            <button
-    @click="router.push('/create')"
-    class="create-btn"
-  >
-    Create Question
-  </button>
+          <button @click="router.push('/create')" class="create-btn">
+            Create Question
+          </button>
           <button @click="handleLogout" class="logout-btn">Logout</button>
         </div>
       </div>
@@ -159,48 +175,39 @@ watchEffect(() => {
 
           <h2 class="question-text">{{ question.question }}</h2>
 
-<div class="choices">
-  <button
-    v-for="(choice, index) in question.choices"
-    :key="choice.id || index"
-    @click="handleChoiceSelect(String.fromCharCode(65 + index))"
-    :class="[
-      'choice-btn',
-      {
-        selected:
-          selectedChoice === String.fromCharCode(65 + index),
+          <div class="choices">
+            <button
+              v-for="(choice, index) in question.choices"
+              :key="choice.id || index"
+              @click="handleChoiceSelect(choice.id)"
+              :class="[
+                'choice-btn',
+                {
+                  selected: selectedChoiceId === choice.id,
 
-        correct:
-          hasSubmitted &&
-          String.fromCharCode(65 + index) ===
-            answer?.correct_choice,
+                  correct: hasSubmitted && choice.id === answer?.choice_id,
 
-        incorrect:
-          hasSubmitted &&
-          selectedChoice ===
-            String.fromCharCode(65 + index) &&
-          selectedChoice !== answer?.correct_choice
-      }
-    ]"
-  >
-    <span class="letter">
-      {{ String.fromCharCode(65 + index) }}
-    </span>
+                  incorrect:
+                    hasSubmitted &&
+                    selectedChoiceId === choice.id &&
+                    choice.id !== answer?.choice_id,
+                },
+              ]"
+            >
+              <span class="letter">
+                {{ String.fromCharCode(65 + Number(index)) }}
+              </span>
 
-    <span class="text">
-      {{
-        typeof choice === "string"
-          ? choice
-          : choice.choice_text
-      }}
-    </span>
-  </button>
-</div>
+              <span class="text">
+                {{ typeof choice === "string" ? choice : choice.choice_text }}
+              </span>
+            </button>
+          </div>
 
           <div class="question-footer">
-            <button 
-              class="submit-btn" 
-              :disabled="selectedChoice === null || hasSubmitted"
+            <button
+              class="submit-btn"
+              :disabled="selectedChoiceId === null || hasSubmitted"
               @click="handleSubmit"
             >
               Submit
@@ -208,11 +215,10 @@ watchEffect(() => {
           </div>
 
           <div v-if="hasSubmitted" class="answer-feedback">
-            <p v-if="isCorrect" class="correct-text">
-              ✅ Correct!
-            </p>
+            <p v-if="isCorrect" class="correct-text">✅ Correct!</p>
             <p v-else class="incorrect-text">
-              ❌ Incorrect. The correct answer is {{ answer?.correct_choice }}.
+              ❌ Incorrect. The correct answer is
+              {{ correctChoiceLetter }}: {{ correctChoice?.choice_text }}.
             </p>
 
             <p v-if="answer?.explanation" class="explanation">
@@ -223,7 +229,8 @@ watchEffect(() => {
       </template>
     </main>
   </div>
-</template><style scoped>
+</template>
+<style scoped>
 .home-page {
   min-height: 100vh;
   background-color: var(--bg-slate);

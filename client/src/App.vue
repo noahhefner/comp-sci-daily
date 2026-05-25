@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { useAuth0 } from "@auth0/auth0-vue";
-import { useAuthStore } from "@/stores/auth";
 
 const { isLoading } = useAuth0();
-const authStore = useAuthStore();
 </script>
 
 <template>

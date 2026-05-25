@@ -5,15 +5,22 @@ import { authGuard } from "@auth0/auth0-vue";
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
+    redirect: "/welcome",
+  },
+
+  {
+    path: "/welcome",
     name: "welcome",
     component: () => import("@/views/WelcomePage.vue"),
   },
+
   {
     path: "/today",
-    name: "home",
+    name: "today",
     component: () => import("@/views/TodaysQuestionPage.vue"),
     beforeEnter: authGuard,
   },
+
   {
     path: "/create",
     name: "create-question",
@@ -22,9 +29,7 @@ const routes: RouteRecordRaw[] = [
   },
 ];
 
-const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+export default createRouter({
+  history: createWebHistory(),
   routes,
 });
-
-export default router;
